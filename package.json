@@ -1,0 +1,23 @@
+{
+  "name": "aigc_practice",
+  "version": "1.0.0",
+  "description": "AIGC practice repo: bank-card visuals, hold-sign video scrub hero, image-gen skill",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xpinus/aigc_practice.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/xpinus/aigc_practice/issues"
+  },
+  "homepage": "https://github.com/xpinus/aigc_practice#readme"
+}
