@@ -1,0 +1,5 @@
+# 生成过程中间产物 / QA 治具 scratch 区(见 AGENTS.md)
+.generate/
+# Python 缓存
+__pycache__/
+*.pyc

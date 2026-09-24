@@ -1,0 +1,4 @@
+# shell 脚本必须保持 LF:CRLF 会破坏 sh scripts/commit.sh 与 hook 执行
+*.sh text eol=lf
+# python 脚本含 shebang / 字节级 grep 逻辑,保持 LF
+*.py text eol=lf
