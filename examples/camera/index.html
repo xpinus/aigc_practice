@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hasselblad — Capture the Feeling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body data-film="portra">
+<div class="frame">
+  <div class="bg" id="bg"></div>
+  <video class="bgvid" id="bgVideo" muted loop playsinline preload="metadata"></video>
+  <div class="grade"></div>
+  <div class="vignette"></div>
+  <canvas id="stage"></canvas>
+  <img id="fallback" src="assets/hero_fallback.png?v=5" alt="Hasselblad medium format camera" hidden>
+
+  <header class="nav">
+    <a class="wordmark" href="#">Hasselblad</a>
+    <nav class="links">
+      <a href="#">Cameras</a><a href="#">Lenses</a><a href="#">Film</a><a href="#">Stories</a><a href="#">Journal</a>
+    </nav>
+    <div class="nav-right">
+      <button class="search">Search
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+      <button class="burger" aria-label="Menu"><span></span><span></span></button>
+    </div>
+  </header>
+
+  <section class="copy left">
+    <p class="eyebrow">Memories, beautifully framed</p>
+    <h1>Capture<br><em>the feeling</em></h1>
+    <p class="body">Timeless craftsmanship. True-to-life color.<br>For the moments you never want to forget.</p>
+    <button class="pill">Explore the journey <span class="arr">&#8594;</span></button>
+  </section>
+
+  <section class="copy right">
+    <div class="orbit-icon">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>
+    </div>
+    <p class="eyebrow">Natural. Cinematic. Real.</p>
+    <h2>Moments that<br><em>stay with you</em></h2>
+    <p class="body">Inspired by light, nature, and<br>the art of slow photography.</p>
+  </section>
+
+  <footer class="dock">
+    <button class="film-chip" id="filmChip">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h10"/></svg>
+      <span class="fc-text"><span class="lab">Film simulation</span><span class="val" id="filmVal">Portra 400</span></span>
+      <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+
+    <div class="cards" id="cards">
+      <button class="card is-active" data-scene="alpine_cabin" data-file="alpine_cabin.jpg" style="--img:url(assets/scenes/alpine_cabin.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Alpine Cabin</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="neon_city" data-file="neon_city.jpg" style="--img:url(assets/scenes/neon_city.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Neon City</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="orbit_sonata" data-file="orbit_sonata.jpg" style="--img:url(assets/scenes/orbit_sonata.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Orbit Sonata</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="frozen_falls" data-file="frozen_falls.jpg" style="--img:url(assets/scenes/frozen_falls.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Frozen Falls</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="black_swan" data-file="black_swan.mp4">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Black Swan</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="deep_sea" data-file="deep_sea.mp4">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Deep Sea</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="studio_muse" data-file="studio_muse.jpg" style="--img:url(assets/scenes/studio_muse.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Studio Muse</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+      <button class="card" data-scene="island_bay" data-file="island_bay.jpg" style="--img:url(assets/scenes/island_bay.jpg)">
+        <span class="thumb"></span>
+        <span class="meta"><span class="name">Island Bay</span><span class="lines"><i></i><i></i><i></i></span></span>
+        <span class="check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      </button>
+    </div>
+
+    <div class="badge">
+      <svg viewBox="0 0 100 100">
+        <defs><path id="ring" d="M50,50 m-36,0 a36,36 0 1,1 72,0 a36,36 0 1,1 -72,0"/></defs>
+        <text><textPath href="#ring">CRAFTED TO INSPIRE &#183; SINCE 1941 &#183;</textPath></text>
+      </svg>
+      <span class="h">H</span>
+    </div>
+  </footer>
+
+  <p class="hint" id="hint">Click the finder to open / close &#183; click the crank to wind &amp; switch scenes</p>
+</div>
+<script type="importmap">
+{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}
+</script>
+<script>
+setTimeout(function(){
+  if(!window.__stageReady){
+    document.getElementById('fallback').hidden = false;
+    document.getElementById('hint').textContent = 'Static preview (3D unavailable)';
+  }
+}, 6000);
+</script>
+<script type="module" src="app.js?v=43"></script>
+</body>
+</html>
