@@ -1,0 +1,7 @@
+# 项目级 MCP 配置:Blender 桥接(ahujasid/blender-mcp)
+# 服务端通过 stdio 启动,运行期连接 Blender 插件的 socket(localhost:9876)。
+# 使用前需在 Blender 内启动桥接:N 面板 > BlenderMCP > Start Blender MCP Server
+[mcp_servers.blender]
+command = "uvx"
+args = ["blender-mcp"]
+startup_timeout_sec = 60
