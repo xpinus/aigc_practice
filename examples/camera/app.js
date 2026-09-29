@@ -31,14 +31,121 @@ let finderNodes = new Set();
 const loader = new GLTFLoader();
 const texLoader = new THREE.TextureLoader();
 
+/* ----- mechanical audio: real recordings, see assets/audio/CREDITS.md ----- */
+const SFX_FILES = {
+  finderOpen:  { file: 'finder_open.wav',  gain: 0.95 },   /* spring release + folding hood panels */
+  finderClose: { file: 'finder_close.wav', gain: 0.90 },   /* panels fold, lid lands, latch bites   */
+  crankWind:   { file: 'crank_wind.wav',   gain: 1.00 },   /* continuous film-advance rotation      */
+  ratchet:     { file: 'ratchet.wav',      gain: 0.85 },   /* detents locked to the crank angle     */
+  lock:        { file: 'lock.wav',         gain: 1.00 },   /* final latch, fires on switch complete */
+};
+const sfx = (() => {
+  const buffers = {}, active = new Map();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null, master = null, enabled = true, lockSrc = null, analyser = null;
+  /* buffers are decoded offline (no gesture needed) so the first click is never silent */
+  async function prefetch() {
+    if (!AC) return 0;
+    let off;
+    try { off = new OfflineAudioContext(1, 128, 44100); } catch (e) { return 0; }
+    await Promise.all(Object.entries(SFX_FILES).map(async ([k, v]) => {
+      try {
+        const r = await fetch(`assets/audio/${v.file}?v=1`);
+        if (!r.ok) return;
+        buffers[k] = await off.decodeAudioData(await r.arrayBuffer());
+      } catch (e) { /* stay silent rather than break the page */ }
+    }));
+    if (document.body) document.body.dataset.sfx = String(Object.keys(buffers).length);
+    return Object.keys(buffers).length;
+  }
+  function ensure() {
+    if (!AC) return null;
+    if (!ctx) {
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.9;
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      master.connect(analyser);
+      analyser.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+  function stopNodes(name) {
+    const list = active.get(name);
+    if (list) for (const n of list) { try { n.stop(); } catch (e) {} }
+    active.delete(name);
+  }
+  function play(name, { delay = 0, gain = 1, exclusive = false } = {}) {
+    if (!enabled || !buffers[name]) return null;
+    const c = ensure();
+    if (!c) return null;
+    if (exclusive) stopNodes(name);
+    const src = c.createBufferSource();
+    src.buffer = buffers[name];
+    const g = c.createGain();
+    g.gain.value = gain * (SFX_FILES[name].gain !== undefined ? SFX_FILES[name].gain : 1);
+    src.connect(g); g.connect(master);
+    src.start(c.currentTime + Math.max(0, delay));
+    /* observable trigger log (data attributes are readable without devtools) */
+    if (document.body) {
+      document.body.dataset.sfxEvent = name + (delay ? '+' + delay.toFixed(3) : '') + '@' + performance.now().toFixed(0);
+      document.body.dataset.sfxSeq = String((+document.body.dataset.sfxSeq || 0) + 1);
+    }
+    const list = active.get(name) || [];
+    list.push(src); active.set(name, list);
+    src.onended = () => {
+      const l = active.get(name);
+      if (l) { const i = l.indexOf(src); if (i >= 0) l.splice(i, 1); }
+    };
+    return src;
+  }
+  return {
+    prefetch, play,
+    unlock: () => { ensure(); },
+    /* the latch click is scheduled on the audio clock so it lands exactly on the
+       frame where the hood finishes opening (== new picture fully revealed) */
+    scheduleLock: (at) => { lockSrc = play('lock', { delay: at, exclusive: true }); return lockSrc; },
+    cancelLock: () => { if (lockSrc) { try { lockSrc.stop(); } catch (e) {} lockSrc = null; } },
+    stopAll: () => { for (const k of [...active.keys()]) stopNodes(k); },
+    get ready() { return Object.keys(buffers).length; },
+    get activeCount() { return active.size; },
+    /* debug/verification tap on the master bus */
+    level: () => {
+      if (!analyser) return -1;
+      const b = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(b);
+      let m = 0;
+      for (let i = 0; i < b.length; i++) m = Math.max(m, Math.abs(b[i]));
+      return m;
+    },
+    get enabled() { return enabled; },
+    set enabled(v) { enabled = !!v; if (!enabled) this.stopAll(); },
+  };
+})();
+
 /* finder state machine: openHold | closing | opening | closedEnd */
 const HOLD = 1.35;
 let fstate = 'boot';
 let pendingScene = null;
 let reopenPending = false;
 
-function startClose() { fstate = 'closing'; for (const a of finderActions) a.paused = false; }
-function startOpen() { fstate = 'opening'; for (const a of finderActions) { a.reset(); a.paused = false; a.play(); } }
+/* real seconds the hood needs to swing open (clip seconds / action timeScale) */
+const openSeconds = () => HOLD / (finderActions.length && finderActions[0].timeScale ? finderActions[0].timeScale : 1);
+
+function startClose() {
+  sfx.cancelLock();                       // a hood that folds back down never latches
+  fstate = 'closing';
+  for (const a of finderActions) a.paused = false;
+  sfx.play('finderClose', { exclusive: true });
+}
+function startOpen() {
+  fstate = 'opening';
+  for (const a of finderActions) { a.reset(); a.paused = false; a.play(); }
+  sfx.play('finderOpen', { exclusive: true });
+  sfx.scheduleLock(openSeconds());        // final lock == picture switch finished
+}
 
 function playGroup(clips) {
   if (!mixer) return;
@@ -60,6 +167,18 @@ const playFinder = () => {
 const bgVideo = document.getElementById('bgVideo');
 let screenVideoEl = null;
 function isVideo(file) { return /\.mp4$/i.test(file); }
+function warmVideo(file) {
+  /* start buffering the clip the moment it is picked, so it is ready before the reveal */
+  if (!isVideo(file)) return;
+  if (!screenVideoEl) {
+    screenVideoEl = document.createElement('video');
+    screenVideoEl.loop = true; screenVideoEl.muted = true; screenVideoEl.playsInline = true;
+  }
+  if (screenVideoEl.dataset.file !== file) {
+    screenVideoEl.src = `assets/scenes/${file}`;
+    screenVideoEl.dataset.file = file;
+  }
+}
 function setScreenVideo(file) {
   if (!screenVideoEl) {
     screenVideoEl = document.createElement('video');
@@ -69,8 +188,13 @@ function setScreenVideo(file) {
     screenVideoEl.src = `assets/scenes/${file}`;
     screenVideoEl.dataset.file = file;
   }
-  screenVideoEl.play().catch(() => {});
   ensureScreenCanvas();
+  if (screenVideoEl.readyState < 2) {          /* never reveal a stale frame */
+    screenCtx.fillStyle = '#000';
+    screenCtx.fillRect(0, 0, screenCanvas.width, screenCanvas.height);
+    screenCanvasTex.needsUpdate = true;
+  }
+  screenVideoEl.play().catch(() => {});
   if (screenMat) { screenMat.map = screenCanvasTex; screenMat.emissiveMap = screenCanvasTex; screenMat.needsUpdate = true; }
 }
 let screenCanvas = null, screenCtx = null, screenCanvasTex = null;
@@ -208,6 +332,7 @@ function selectScene(name) {
   layoutCards();
   if (!mixer || !finderActions.length) { applyScene(name); return; }
   pendingScene = name;
+  warmVideo(fileFor(name));
   if (fstate === 'openHold') startClose();
   else if (fstate === 'opening') reopenPending = true;
   else if (fstate === 'closedEnd') { applyScene(name); startOpen(); }
@@ -243,6 +368,15 @@ cards.forEach((card) => {
 });
 layoutCards();
 
+/* ----- preload: stills, clip headers and the mechanical audio ----- */
+for (const c of cards) {
+  const f = c.dataset.file;
+  if (isVideo(f)) continue;
+  const im = new Image();
+  im.src = `assets/scenes/${f}`;
+}
+if (bgVideo) { bgVideo.preload = 'metadata'; }
+
 /* ----- film simulation ----- */
 const films = [['portra', 'Portra 400'], ['velvia', 'Velvia 50'], ['acros', 'Acros 100']];
 let fi = 0;
@@ -276,7 +410,13 @@ canvas.addEventListener('pointerup', (e) => {
     if (finderNodes.has(o.name)) { group = 'finder'; break; }
     o = o.parent;
   }
-  if (group === 'crank') { playCrank(); selectScene(nextScene()); }
+  if (group === 'crank') {
+    /* winding noise follows the crank: both files carry the 0.167 s lead-in of the clip */
+    sfx.play('crankWind', { exclusive: true });
+    sfx.play('ratchet', { exclusive: true });
+    playCrank();
+    selectScene(nextScene());
+  }
   else if (group === 'finder') playFinder();
   if (group) document.getElementById('hint').classList.add('gone');
 });
@@ -294,10 +434,17 @@ resize();
 const clock = new THREE.Clock();
 window.__stageReady = true;
 window.__cam = { get state(){ return fstate; }, get t(){ return finderActions[0] ? finderActions[0].time : -1; } };
+/* audio: fetch/decode immediately, open the context on the first real gesture */
+sfx.prefetch().then((n) => { window.__sfxReady = n; });
+window.__sfx = sfx;
+for (const ev of ['pointerdown', 'keydown', 'touchstart', 'focus', 'visibilitychange']) {
+  window.addEventListener(ev, sfx.unlock, { capture: true });
+}
 renderer.setAnimationLoop(() => {
   const dt = clock.getDelta();
   if (mixer) mixer.update(dt);
   drawScreenVideo();
+  if (sfx.activeCount) document.body.dataset.sfxLevel = sfx.level().toFixed(3);
   if (fstate === 'opening' && finderActions.length && finderActions[0].time >= HOLD) {
     for (const a of finderActions) a.paused = true;
     fstate = 'openHold';
