@@ -147,6 +147,26 @@ function startOpen() {
   sfx.scheduleLock(openSeconds());        // final lock == picture switch finished
 }
 
+/* the swap happened under a closed hood; only swing open once the new picture
+   or clip can actually be shown (max ~0.7 s, then open anyway) */
+function mediaReady(file) {
+  if (isVideo(file)) { const v = videoPool.get(file); return !!v && v.readyState >= 2; }
+  const en = texCache.get(file); return !!en && en.ready;
+}
+function revealWhenReady(budget = 0.7) {
+  const file = fileFor(currentScene);
+  if (mediaReady(file)) { startOpen(); return; }
+  fstate = 'closedEnd';
+  const t0 = performance.now();
+  const iv = setInterval(() => {
+    if (fstate !== 'closedEnd') { clearInterval(iv); return; }
+    if (mediaReady(file) || performance.now() - t0 > budget * 1000) {
+      clearInterval(iv);
+      if (fstate === 'closedEnd') startOpen();
+    }
+  }, 40);
+}
+
 function playGroup(clips) {
   if (!mixer) return;
   for (const clip of clips) {
@@ -167,27 +187,31 @@ const playFinder = () => {
 const bgVideo = document.getElementById('bgVideo');
 let screenVideoEl = null;
 function isVideo(file) { return /\.mp4$/i.test(file); }
+const videoPool = new Map();
+function poolVideo(file) {
+  /* one element per clip, created up-front: metadata + a 1 s seek warms the byte
+     range so the first reveal of that clip never waits on the network */
+  let v = videoPool.get(file);
+  if (!v) {
+    v = document.createElement('video');
+    v.loop = true; v.muted = true; v.playsInline = true; v.preload = 'metadata';
+    v.src = `assets/scenes/${file}`;
+    v.addEventListener('loadedmetadata', () => {
+      try { v.currentTime = Math.min(1.0, (v.duration || 2) / 2); } catch (e) {}
+    }, { once: true });
+    videoPool.set(file, v);
+  }
+  return v;
+}
 function warmVideo(file) {
-  /* start buffering the clip the moment it is picked, so it is ready before the reveal */
+  /* the clip is picked: buffer it hard while the hood covers the swap */
   if (!isVideo(file)) return;
-  if (!screenVideoEl) {
-    screenVideoEl = document.createElement('video');
-    screenVideoEl.loop = true; screenVideoEl.muted = true; screenVideoEl.playsInline = true;
-  }
-  if (screenVideoEl.dataset.file !== file) {
-    screenVideoEl.src = `assets/scenes/${file}`;
-    screenVideoEl.dataset.file = file;
-  }
+  poolVideo(file).preload = 'auto';
 }
 function setScreenVideo(file) {
-  if (!screenVideoEl) {
-    screenVideoEl = document.createElement('video');
-    screenVideoEl.loop = true; screenVideoEl.muted = true; screenVideoEl.playsInline = true;
-  }
-  if (screenVideoEl.dataset.file !== file) {
-    screenVideoEl.src = `assets/scenes/${file}`;
-    screenVideoEl.dataset.file = file;
-  }
+  const v = poolVideo(file);
+  if (screenVideoEl && screenVideoEl !== v) screenVideoEl.pause();
+  screenVideoEl = v;
   ensureScreenCanvas();
   if (screenVideoEl.readyState < 2) {          /* never reveal a stale frame */
     screenCtx.fillStyle = '#000';
@@ -223,14 +247,28 @@ function drawScreenVideo() {
   screenCanvasTex.needsUpdate = true;
 }
 function stopScreenVideo() { if (screenVideoEl) screenVideoEl.pause(); }
+const texCache = new Map();
+function sceneTexture(file) {
+  let en = texCache.get(file);
+  if (!en) {
+    en = { tex: null, ready: false };
+    en.promise = new Promise((res) => {
+      texLoader.load(`assets/scenes/${file}`, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.flipY = false;
+        t.center.set(0.5, 0.5);
+        t.rotation = Math.PI;
+        en.tex = t; en.ready = true; res(t);
+      }, undefined, () => res(null));
+    });
+    texCache.set(file, en);
+  }
+  return en;
+}
 function setScreenTexture(file) {
-  texLoader.load(`assets/scenes/${file}`, (t) => {
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.flipY = false;
-    t.center.set(0.5, 0.5);
-    t.rotation = Math.PI;
-    if (screenMat) { screenMat.map = t; screenMat.emissiveMap = t; screenMat.needsUpdate = true; }
-  });
+  const en = sceneTexture(file);
+  const apply = (t) => { if (t && screenMat) { screenMat.map = t; screenMat.emissiveMap = t; screenMat.needsUpdate = true; } };
+  if (en.ready) apply(en.tex); else en.promise.then(apply);
 }
 
 loader.load('assets/camera.glb?v=9', (gltf) => {
@@ -263,6 +301,7 @@ loader.load('assets/camera.glb?v=9', (gltf) => {
     const a = mixer.clipAction(clip);
     a.setLoop(THREE.LoopOnce, 1);
     a.timeScale = 2.0;   // double-speed open/close
+    a.clampWhenFinished = true;   // keep the hood shut while we wait for media
     a.play();
     a.paused = true;
     a.time = HOLD;
@@ -271,7 +310,7 @@ loader.load('assets/camera.glb?v=9', (gltf) => {
   mixer.addEventListener('finished', (e) => {
     if (fstate === 'closing' && finderActions.includes(e.action)) {
       if (pendingScene) { applyScene(pendingScene); pendingScene = null; }
-      startOpen();
+      revealWhenReady();
     }
   });
   fstate = 'openHold';
@@ -307,7 +346,7 @@ function applyScene(name) {
     bgVideo.pause();
     bgVideo.style.display = 'none';
     bgEl.style.display = '';
-    bgEl.style.backgroundImage = `url(assets/scenes/${file}?v=6)`;
+    bgEl.style.backgroundImage = `url(assets/scenes/${file})`;
   }
 }
 function layoutCards() {
@@ -335,7 +374,7 @@ function selectScene(name) {
   warmVideo(fileFor(name));
   if (fstate === 'openHold') startClose();
   else if (fstate === 'opening') reopenPending = true;
-  else if (fstate === 'closedEnd') { applyScene(name); startOpen(); }
+  else if (fstate === 'closedEnd') { pendingScene = null; applyScene(name); startOpen(); }
 }
 function nextScene() {
   const i = sceneNames.indexOf(uiScene);
@@ -350,11 +389,8 @@ cards.forEach((card) => card.addEventListener('click', () => {
 cards.forEach((card) => {
   const file = card.dataset.file;
   if (!isVideo(file)) return;
-  const v = document.createElement('video');
-  v.muted = true; v.playsInline = true; v.preload = 'metadata';
-  v.src = `assets/scenes/${file}`;
-  v.addEventListener('loadeddata', () => { v.currentTime = Math.min(1.0, (v.duration || 2) / 2); }, { once: true });
-  v.addEventListener('seeked', () => {
+  const v = poolVideo(file);
+  const draw = () => {
     const cv = document.createElement('canvas');
     cv.width = 344; cv.height = 256;
     const cx = cv.getContext('2d');
@@ -364,18 +400,19 @@ cards.forEach((card) => {
     else { sh = v.videoWidth / cr; sy = (v.videoHeight - sh) / 2; }
     cx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
     card.style.setProperty('--img', `url(${cv.toDataURL('image/jpeg', 0.82)})`);
-  }, { once: true });
+  };
+  if (v.readyState >= 2) draw();
+  else v.addEventListener('seeked', draw, { once: true });
 });
 layoutCards();
 
 /* ----- preload: stills, clip headers and the mechanical audio ----- */
 for (const c of cards) {
   const f = c.dataset.file;
-  if (isVideo(f)) continue;
-  const im = new Image();
-  im.src = `assets/scenes/${f}`;
+  if (isVideo(f)) poolVideo(f);      /* header + first second buffered at boot */
+  else sceneTexture(f);              /* decoded and GPU-uploaded before any click */
 }
-if (bgVideo) { bgVideo.preload = 'metadata'; }
+if (bgVideo) bgVideo.preload = 'metadata';
 
 /* ----- film simulation ----- */
 const films = [['portra', 'Portra 400'], ['velvia', 'Velvia 50'], ['acros', 'Acros 100']];
