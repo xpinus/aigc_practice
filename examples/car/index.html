@@ -7,11 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <div class="hero">
   <div class="bg" id="bg" role="img" aria-label="Olive-green classic coupé on a marble platform under a cream pergola"></div>
+  <canvas id="reveal"></canvas>
   <div class="scrim"></div>
 
   <header class="nav-cap">
@@ -78,7 +79,12 @@
   </footer>
 
   <span class="side-note">Pergola No. 3 &middot; 43.7&deg; N, 11.2&deg; E</span>
+
+  <button class="bloom-hint" id="bloomHint" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4.5 19.5 14 10m0 0-2.2-2.2M14 10l2.2 2.2M14 10l3.2-3.2a1.9 1.9 0 0 1 2.7 2.7L16.7 12.7"/><path d="m7 5 .6 1.4L9 7l-1.4.6L7 9l-.6-1.4L5 7l1.4-.6L7 5Z"/></svg>
+    Sweep the car &mdash; let it bloom <i>double-click to replay</i>
+  </button>
 </div>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
