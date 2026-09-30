@@ -214,7 +214,7 @@
       const mx = ptr.x * mask.width, my = ptr.y * mask.height;
       const pmx = ptr.px * mask.width, pmy = (1 - ptr.py) * mask.height;
       const d = Math.hypot(mx - pmx, my - pmy);
-      const R = mask.height * 0.155 * (1 + Math.min(0.45, d * 0.012));
+      const R = mask.height * 0.1033 * (1 + Math.min(0.45, d * 0.012));   /* brush radius: 2/3 of the original */
       const steps = Math.max(1, Math.ceil(d / (R * 0.4)));
       for (let i = 0; i <= steps; i++) {
         blob(pmx + (mx - pmx) * i / steps, pmy + (my - pmy) * i / steps, R, t + i * 0.7);
